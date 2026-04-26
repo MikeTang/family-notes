@@ -1,1 +1,37 @@
 @import "tailwindcss";
+
+/* ── Note card custom shadow + hover (used inline too, but kept here for completeness) ── */
+.note-card {
+  background: #fffdf7;
+  border: 1px solid #e8dfc8;
+  box-shadow: 0 2px 8px rgba(180, 150, 90, 0.08),
+    0 1px 2px rgba(180, 150, 90, 0.06);
+  transition: box-shadow 0.2s ease;
+}
+
+.note-card:hover {
+  box-shadow: 0 4px 16px rgba(180, 150, 90, 0.14),
+    0 2px 4px rgba(180, 150, 90, 0.08);
+}
+
+/* ── Paper ruled-line background for compose textarea ── */
+.paper-lines {
+  background-image: repeating-linear-gradient(
+    transparent,
+    transparent 27px,
+    #ede6d6 27px,
+    #ede6d6 28px
+  );
+  background-position: 0 36px;
+}
+
+/* ── Avatar ring ── */
+.avatar-ring {
+  box-shadow: 0 0 0 2px #fdf8f0, 0 0 0 4px #d4a96a;
+}
+
+/* ── Delete confirmation banner ── */
+.delete-confirm {
+  background: #fff5f5;
+  border: 1px solid #fca5a5;
+}
