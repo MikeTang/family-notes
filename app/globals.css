@@ -1,6 +1,25 @@
 @import "tailwindcss";
 
-/* ── Note card custom shadow + hover (used inline too, but kept here for completeness) ── */
+/* ── Font registration for Tailwind v4 ── */
+@layer base {
+  html {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  body {
+    background-color: #fdf8f0;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ── Lora utility (applied via className="font-lora") ── */
+.font-lora {
+  font-family: 'Lora', ui-serif, Georgia, serif;
+}
+
+/* ── Note card: warm paper look + CSS-native hover ── */
 .note-card {
   background: #fffdf7;
   border: 1px solid #e8dfc8;
