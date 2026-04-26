@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 const ERR_COPY: Record<string, string> = {
@@ -10,7 +10,31 @@ const ERR_COPY: Record<string, string> = {
     "That link has expired or already been used. Request a new one.",
 };
 
+// Wrapping in Suspense lets Next.js prerender the static shell at build
+// time without bailing on useSearchParams. Without this, `next build`
+// fails with "Error occurred prerendering page /sign-in".
 export default function SignInPage() {
+  return (
+    <Suspense fallback={<SignInShell />}>
+      <SignInForm />
+    </Suspense>
+  );
+}
+
+function SignInShell() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
+      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <h1 className="mb-1 text-xl font-bold text-neutral-900">Sign in</h1>
+        <p className="mb-5 text-sm text-neutral-600">
+          We&apos;ll email you a one-tap link. No password needed.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function SignInForm() {
   const params = useSearchParams();
   const initialError = params.get("err");
 
