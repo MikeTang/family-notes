@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import type { Note } from "@/app/api/notes/route";
 
 // Avatar colour palette — cycle deterministically by first letter of author name
@@ -40,15 +40,27 @@ function formatDate(iso: string): string {
 interface NoteCardProps {
   note: Note;
   onDelete: (id: string) => void;
+  /** When true the card fades in on mount (used for freshly-posted notes). */
+  fadeIn?: boolean;
 }
 
-function NoteCard({ note, onDelete }: NoteCardProps) {
+function NoteCard({ note, onDelete, fadeIn = false }: NoteCardProps) {
   const [confirming, setConfirming] = useState(false);
   const [collapsing, setCollapsing] = useState(false);
+  const [visible, setVisible] = useState(!fadeIn);
   const [isPending, startTransition] = useTransition();
 
   const initial = (note.authorName[0] ?? "?").toUpperCase();
   const bgColor = avatarColor(note.authorName);
+
+  // Trigger fade-in on mount for new notes
+  useEffect(() => {
+    if (fadeIn) {
+      // Tiny delay so the initial opacity:0 frame is painted before we flip it
+      const raf = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [fadeIn]);
 
   async function handleConfirmDelete() {
     setCollapsing(true);
@@ -61,10 +73,13 @@ function NoteCard({ note, onDelete }: NoteCardProps) {
     <div
       style={{
         // Collapse animation: shrink max-height + opacity
-        maxHeight: collapsing ? "0" : "600px",
-        opacity: collapsing ? 0 : 1,
+        maxHeight: collapsing ? "0" : "800px",
+        opacity: collapsing ? 0 : visible ? 1 : 0,
         overflow: "hidden",
-        transition: "max-height 0.3s ease, opacity 0.25s ease",
+        // Fade-in uses a longer ease-out; collapse uses its own timing
+        transition: collapsing
+          ? "max-height 0.3s ease, opacity 0.25s ease"
+          : "opacity 0.4s ease-out",
         marginBottom: collapsing ? "0" : undefined,
       }}
     >
@@ -173,6 +188,19 @@ function ComposeNote({ onPost, onCancel }: ComposeProps) {
   const [body, setBody] = useState("");
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-expand the textarea to fit its content
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    autoResize();
+  }, [body, autoResize]);
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault();
@@ -200,11 +228,18 @@ function ComposeNote({ onPost, onCancel }: ComposeProps) {
   }
 
   return (
+    /*
+     * Compose card — matches the mockup:
+     * - note-card base (warm white bg, warm border)
+     * - 2px amber/gold full border accent (overrides note-card 1px border)
+     * - terracotta left-border accent per Iris's form spec: 4px left border in #c47a5a
+     */
     <div
-      className="rounded-2xl p-5 mb-6 border-2"
+      className="rounded-2xl p-5 mb-6"
       style={{
         background: "#fffdf7",
         border: "2px solid #d4a96a",
+        borderLeft: "5px solid #c47a5a", // terracotta left-border accent
         boxShadow:
           "0 2px 8px rgba(180,150,90,0.08), 0 1px 2px rgba(180,150,90,0.06)",
       }}
@@ -213,6 +248,7 @@ function ComposeNote({ onPost, onCancel }: ComposeProps) {
         ✏️ New Note
       </p>
       <form onSubmit={handlePost}>
+        {/* Title */}
         <input
           type="text"
           value={title}
@@ -225,6 +261,7 @@ function ComposeNote({ onPost, onCancel }: ComposeProps) {
           style={{ fontFamily: "'Lora', serif" }}
         />
 
+        {/* Body — auto-expanding, paper-lines background */}
         <div
           style={{
             backgroundImage:
@@ -233,12 +270,18 @@ function ComposeNote({ onPost, onCancel }: ComposeProps) {
           }}
         >
           <textarea
+            ref={textareaRef}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              setBody(e.target.value);
+              autoResize();
+            }}
+            onInput={autoResize}
             placeholder="What's on your mind?"
             rows={3}
             maxLength={10_000}
             className="w-full text-sm text-stone-600 placeholder-stone-300 bg-transparent border-none outline-none resize-none leading-7 pt-1"
+            style={{ overflow: "hidden", minHeight: "84px" }}
           />
         </div>
 
@@ -257,10 +300,10 @@ function ComposeNote({ onPost, onCancel }: ComposeProps) {
           <button
             type="submit"
             disabled={posting || !title.trim()}
-            className="px-5 py-2 rounded-lg text-sm text-white font-medium transition disabled:opacity-50"
+            className="px-5 py-2 rounded-lg text-sm text-white font-medium transition hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: "#c4882a" }}
           >
-            {posting ? "Posting…" : "Post Note"}
+            {posting ? "Posting…" : "Add Note"}
           </button>
         </div>
       </form>
@@ -268,14 +311,19 @@ function ComposeNote({ onPost, onCancel }: ComposeProps) {
   );
 }
 
-// ── Main feed ───────────────────────────────────────────────────────────────
+// ── Notes feed ──────────────────────────────────────────────────────────────
 
 interface NotesFeedProps {
   initialNotes: Note[];
   currentUserEmail: string;
 }
 
-export default function NotesFeed({ initialNotes, currentUserEmail }: NotesFeedProps) {
+export default function NotesFeed({
+  initialNotes,
+  currentUserEmail: _currentUserEmail,
+}: NotesFeedProps) {
+  // Track which note IDs were just posted so we can apply the fade-in
+  const [newNoteIds, setNewNoteIds] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [composing, setComposing] = useState(false);
 
@@ -288,7 +336,21 @@ export default function NotesFeed({ initialNotes, currentUserEmail }: NotesFeedP
   }
 
   function handlePost(note: Note) {
+    // Mark this note for fade-in animation, then prepend it
+    setNewNoteIds((prev) => new Set(prev).add(note.id));
     setNotes((prev) => [note, ...prev]);
+    setComposing(false);
+    // Remove the fade-in marker after the animation completes (500 ms)
+    setTimeout(() => {
+      setNewNoteIds((prev) => {
+        const next = new Set(prev);
+        next.delete(note.id);
+        return next;
+      });
+    }, 500);
+  }
+
+  function handleCancel() {
     setComposing(false);
   }
 
@@ -321,12 +383,9 @@ export default function NotesFeed({ initialNotes, currentUserEmail }: NotesFeedP
         )}
       </div>
 
-      {/* Compose form */}
+      {/* Compose form — shown above the feed when composing */}
       {composing && (
-        <ComposeNote
-          onPost={handlePost}
-          onCancel={() => setComposing(false)}
-        />
+        <ComposeNote onPost={handlePost} onCancel={handleCancel} />
       )}
 
       {/* Notes feed */}
@@ -338,7 +397,12 @@ export default function NotesFeed({ initialNotes, currentUserEmail }: NotesFeedP
       ) : (
         <div className="space-y-4">
           {notes.map((note) => (
-            <NoteCard key={note.id} note={note} onDelete={handleDelete} />
+            <NoteCard
+              key={note.id}
+              note={note}
+              onDelete={handleDelete}
+              fadeIn={newNoteIds.has(note.id)}
+            />
           ))}
         </div>
       )}
