@@ -1,43 +1,13 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { readNotes } from "@/lib/notes";
 import NotesFeed from "@/app/components/NotesFeed";
-import type { Note } from "@/app/api/notes/route";
-
-// Fetch shared notes server-side. On error, fall back to empty array so
-// the page still renders — the user can still add notes.
-async function fetchNotes(): Promise<Note[]> {
-  try {
-    // Call our own route handler logic directly (same process).
-    // We must use an absolute URL when calling fetch in a server component.
-    const base =
-      process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-
-    // Forward the cookie header so the route handler can authenticate us.
-    const { cookies } = await import("next/headers");
-    const jar = await cookies();
-    const cookieHeader = jar
-      .getAll()
-      .map((c) => `${c.name}=${c.value}`)
-      .join("; ");
-
-    const res = await fetch(`${base}/api/notes`, {
-      headers: { Cookie: cookieHeader },
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    return (await res.json()) as Note[];
-  } catch {
-    return [];
-  }
-}
 
 export default async function Home() {
   const session = await getSession();
   if (!session) redirect("/sign-in");
 
-  const notes = await fetchNotes();
+  const notes = await readNotes();
 
   // Derive display name from email consistently with the POST handler.
   const displayName = (() => {

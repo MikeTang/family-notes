@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect, useCallback } from "react";
-import type { Note } from "@/app/api/notes/route";
+import type { Note } from "@/lib/notes";
 
 // Avatar colour palette — cycle deterministically by first letter of author name
 const AVATAR_COLORS = [

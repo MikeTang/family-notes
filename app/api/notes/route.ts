@@ -1,43 +1,14 @@
 // Shared notes API — all family members read/write the same blob.
 // Protected: requires a valid session for all operations.
+// Storage primitives moved to @/lib/notes so the home page server component
+// can call them directly (no self-HTTP round-trip).
 
-import { put, head, del } from "@vercel/blob";
 import { getSession } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { readNotes, writeNotes, type Note } from "@/lib/notes";
+
+export type { Note };
 
 export const runtime = "nodejs";
-
-export interface Note {
-  id: string;
-  title: string;
-  body: string;
-  authorEmail: string;
-  /** Display name derived from email (part before @) */
-  authorName: string;
-  createdAt: string; // ISO-8601
-}
-
-const SHARED_BLOB = "data/shared/family-notes.json";
-
-async function readNotes(): Promise<Note[]> {
-  try {
-    const meta = await head(SHARED_BLOB);
-    const res = await fetch(meta.url, { cache: "no-store" });
-    if (!res.ok) return [];
-    return (await res.json()) as Note[];
-  } catch {
-    return [];
-  }
-}
-
-async function writeNotes(notes: Note[]): Promise<void> {
-  await put(SHARED_BLOB, JSON.stringify(notes), {
-    access: "public",
-    contentType: "application/json",
-    allowOverwrite: true,
-    addRandomSuffix: false,
-  });
-}
 
 /** GET /api/notes — return all notes, newest first */
 export async function GET() {
